@@ -1,0 +1,2 @@
+# RADAR-platform
+The repository for work on the RADAR platform, a scalable, generic data harvesting pipeline for harvesting data from mobile phone sensors, IoT/Wearable devices etc.  Remote Assessment of Disease and Relapse (RADAR) project. RADAR is a 22 million (11M European Funding and matched funding from EFPIA partners) European FP-7 initiative to pioneer mHealth remote monitoring capabilities in 3 key neurological disease areas: Depression, MS and Epilepsy.
