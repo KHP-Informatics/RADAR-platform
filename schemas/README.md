@@ -1,3 +1,12 @@
+Schema Discussion
+=================
+
+This is a temporary file where discussion about schema can take place.
+
+###Question Schema
+This is sourced from a REDCAP intermediate format produced in current client side applications
+
+```javascript
 [{
   "order":1,
   "variable":"variable_name",
@@ -18,3 +27,4 @@
   "matrix_group":"",
   "matrix_ranking":""
 }]
+```
