@@ -1,0 +1,210 @@
+#!/bin/bash
+# (Copyright) [2016 - 2016] Confluent, Inc.
+
+#
+# Use shellcheck to lint this file
+#
+
+set -ue
+
+usage() {
+    echo "$(basename "$0")": ERROR: "$*" 1>&2
+    echo usage: "$(basename "$0")" 'props_file' 1>&2
+exit 1
+}
+
+if [ $# -lt 1 ];
+then
+  usage "Properties file is required"
+fi
+
+bin_dir=$(dirname "$0")
+props_file="$1"
+TOPICS="Group-FIFTEEN_SECONDS-changelog
+Group-ONE_HOUR-changelog
+Group-ONE_WEEK-changelog
+MonitoringMessageAggregatorWindows-FIFTEEN_SECONDS-changelog
+MonitoringMessageAggregatorWindows-ONE_HOUR-changelog
+MonitoringMessageAggregatorWindows-ONE_WEEK-changelog
+MonitoringStream-FIFTEEN_SECONDS-changelog
+MonitoringStream-ONE_HOUR-changelog
+MonitoringStream-ONE_WEEK-changelog
+MonitoringVerifierStore-changelog
+aggregate-topic-partition-FIFTEEN_SECONDS
+aggregate-topic-partition-FIFTEEN_SECONDS-changelog
+aggregate-topic-partition-ONE_HOUR
+aggregate-topic-partition-ONE_HOUR-changelog
+aggregate-topic-partition-ONE_WEEK
+aggregate-topic-partition-ONE_WEEK-changelog
+aggregatedTopicPartitionTableWindows-FIFTEEN_SECONDS-changelog
+aggregatedTopicPartitionTableWindows-ONE_HOUR-changelog
+aggregatedTopicPartitionTableWindows-ONE_WEEK-changelog
+error-topic
+group-aggregate-topic-FIFTEEN_SECONDS
+group-aggregate-topic-FIFTEEN_SECONDS-changelog
+group-aggregate-topic-ONE_HOUR
+group-aggregate-topic-ONE_HOUR-changelog
+group-aggregate-topic-ONE_WEEK
+group-aggregate-topic-ONE_WEEK-changelog
+group-stream-extension-rekey-FIFTEEN_SECONDS
+group-stream-extension-rekey-ONE_HOUR
+group-stream-extension-rekey-ONE_WEEK
+monitoring-aggregate-rekey-FIFTEEN_SECONDS
+monitoring-aggregate-rekey-FIFTEEN_SECONDS-changelog
+monitoring-aggregate-rekey-ONE_HOUR
+monitoring-aggregate-rekey-ONE_HOUR-changelog
+monitoring-aggregate-rekey-ONE_WEEK
+monitoring-aggregate-rekey-ONE_WEEK-changelog"
+
+extract_prop_value() {
+  PROP="$1"
+  DEFAULT="$2"
+  VALUE=$(grep -m 1 -e "^\s*${PROP}\s*=" "$props_file" | awk -F'=' '{ print $2 }')
+  if [ ! -z "$VALUE" ]
+  then
+    VALUE="${VALUE%\"}"
+    VALUE="${VALUE#\"}"
+    echo "$VALUE"
+    return;
+  fi
+  echo "$DEFAULT"
+}
+
+ZK_CONNECT="localhost:2181"
+CONTROL_CENTER_NAME="_confluent-controlcenter"
+MONITORING_TOPIC="_confluent-monitoring"
+MONITORING_TOPIC_RETENTION_MS=""
+MONITORING_PARTITIONS=12
+MONITORING_REPLICATION=3
+DATA_DIR="/tmp/confluent/control-center"
+CONTROL_CENTER_ID="0"
+PARTITIONS=4
+REPLICATION=3
+TOPIC_RETENTION_MS=86400000 #1day
+
+# get control center id and zookeeper info from config if specified
+if [ ! -z "$props_file" ]
+then
+  CONTROL_CENTER_NAME=$(extract_prop_value "confluent.controlcenter.name" "$CONTROL_CENTER_NAME")
+  CONTROL_CENTER_ID=$(extract_prop_value "confluent.controlcenter.id" "$CONTROL_CENTER_ID")
+  ZK_CONNECT=$(extract_prop_value "zookeeper.connect" "$ZK_CONNECT")
+  DATA_DIR=$(extract_prop_value "confluent.controlcenter.data.dir" "$DATA_DIR")
+  MONITORING_TOPIC=$(extract_prop_value "confluent.monitoring.interceptor.topic" "$MONITORING_TOPIC")
+  MONITORING_PARTITIONS=$(extract_prop_value "confluent.monitoring.interceptor.topic.partitions" "$MONITORING_PARTITIONS")
+  MONITORING_TOPIC_RETENTION_MS=$(extract_prop_value "confluent.monitoring.interceptor.topic.retention.ms" "$MONITORING_TOPIC_RETENTION_MS")
+  MONITORING_REPLICATION=$(extract_prop_value "confluent.monitoring.interceptor.topic.replication" "$MONITORING_REPLICATION")
+  PARTITIONS=$(extract_prop_value "confluent.controlcenter.internal.topics.partitions" "$PARTITIONS")
+  REPLICATION=$(extract_prop_value "confluent.controlcenter.internal.topics.replication" "$REPLICATION")
+  TOPIC_RETENTION_MS=$(extract_prop_value "confluent.controlcenter.internal.topics.retention.ms" "$TOPIC_RETENTION_MS")
+fi
+
+LOGS_DIR="$DATA_DIR"/start-logs
+mkdir -p "$LOGS_DIR"
+rm -rf "${LOGS_DIR:?}/*"
+
+# create internal topics
+TOPIC_PREFIX=$CONTROL_CENTER_NAME-$CONTROL_CENTER_ID
+INTERNAL_TOPICS=""
+for topic in $TOPICS; do
+  INTERNAL_TOPICS="$INTERNAL_TOPICS"$'\n'"$TOPIC_PREFIX-$topic";
+done
+
+check_topics() {
+  retval="false"
+  MAX_COUNT="$1"
+  count=0
+  while [ $count -lt "$MAX_COUNT" ]
+  do
+    rm -f "$LOGS_DIR/internal-topics"
+    "$bin_dir"/control-center-run-class kafka.admin.TopicCommand --zookeeper "$ZK_CONNECT" --list > "$LOGS_DIR/internal-topics"
+    result="true"
+    for topic in $MONITORING_TOPIC $INTERNAL_TOPICS;
+    do
+      tp=$(grep -e "^$topic$" "$LOGS_DIR/internal-topics")
+      if [ -z "$tp" ]
+      then
+        result="false"
+        break
+      fi
+    done
+    if [ "x$result" = "xfalse" ]
+    then
+      sleep 1
+      #http://unix.stackexchange.com/questions/63166/bash-e-exits-when-let-or-expr-evaluates-to-0
+      count=$((count+1))
+    else
+      # all topics got created
+      retval="true"
+      break
+    fi
+  done
+  echo "$retval"
+}
+
+create_topic() {
+  BIN_DIR="$1"
+  TOPIC="$2"
+  PARTITIONS="$3"
+  REPLICATION="$4"
+  RETENTION_MS="$5"
+
+  #http://unix.stackexchange.com/questions/63166/bash-e-exits-when-let-or-expr-evaluates-to-0
+  isr=$((REPLICATION-1))
+  if [ "$isr" -gt 2 ]
+  then
+    isr=2
+  fi
+
+  OPTIONS=(--zookeeper "$ZK_CONNECT" --topic "$TOPIC" --create --partitions "$PARTITIONS" --replication-factor "$REPLICATION")
+  if [[ "$TOPIC" =~ -changelog$ ]]
+  then
+    OPTIONS+=(--config cleanup.policy=compact)
+    if [ ! -z "$RETENTION_MS" ]
+    then
+      OPTIONS+=(--config delete.retention.ms="$RETENTION_MS")
+    fi
+  else
+    if [ ! -z "$RETENTION_MS" ]
+    then
+      OPTIONS+=(--config retention.ms="$RETENTION_MS")
+    fi
+  fi
+  if [ "$isr" -gt 1 ]
+  then
+    OPTIONS+=(--config "min.insync.replicas=$isr")
+  fi
+  printf "Creating topic %s with %s partitions and replication factor of %s..." "$TOPIC" "$PARTITIONS" "$REPLICATION"
+  if "$BIN_DIR"/control-center-run-class kafka.admin.TopicCommand "${OPTIONS[@]}" >> "$LOGS_DIR/$TOPIC-log" 2>&1
+  then
+    printf "\tCREATED\n"
+  else
+    output=$("$BIN_DIR"/control-center-run-class kafka.admin.TopicCommand --zookeeper "$ZK_CONNECT" --topic "$TOPIC" --list)
+    if [ $? -eq 0 ] && [ ! -z "$output" ]
+    then
+      printf "\tALREADY EXISTS\n"
+    else
+      printf "\tFAILED\n"
+    fi
+  fi
+}
+
+retval=$( check_topics 1 )
+if [ "x$retval" = "xfalse" ]
+then
+  #Create monitoring topic first as interceptors and C3 rely on it
+  create_topic "${bin_dir}" "${MONITORING_TOPIC}" "${MONITORING_PARTITIONS}" "${MONITORING_REPLICATION}" "${MONITORING_TOPIC_RETENTION_MS}"
+  for topic in $INTERNAL_TOPICS; do
+    create_topic "${bin_dir}" "${topic}" "${PARTITIONS}" "${REPLICATION}" "${TOPIC_RETENTION_MS}"
+  done
+
+  retval=$( check_topics 1 )
+  if [ "x$retval" = "xfalse" ]
+  then
+    echo "Failed to create at least one topic, see log files in $LOGS_DIR directory"
+    exit 1
+  fi
+else
+  echo "Internal topics already exist. OK."
+fi
+
+exec "$bin_dir"/control-center-run-class io.confluent.controlcenter.ControlCenter "$props_file"

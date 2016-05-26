@@ -1,0 +1,69 @@
+{
+    "data": {
+        "items": [
+            {
+                "lean_mass": null,
+                "time_updated": 1444096371,
+                "xid": "JM2JlMHcHlVJUd597YY3Lnny5eEku5Ll",
+                "weight": 64,
+                "title": null,
+                "body_fat": 10.5,
+                "image": "",
+                "bmi": null,
+                "time_created": 1444009961,
+                "note": "First weight",
+                "details": {
+                    "tz": "America/Denver"
+                },
+                "waistline": null,
+                "date": 20151004,
+                "shared": false,
+                "type": "body"
+            },
+            {
+                "lean_mass": null,
+                "time_updated": 1444096372,
+                "xid": "JM2JlMHcHlUP2mAvWWVlwwNFFVo_4CfQ",
+                "weight": 74.5,
+                "title": null,
+                "body_fat": null,
+                "image": "",
+                "bmi": 23,
+                "time_created": 1444096372,
+                "note": null,
+                "details": {
+                    "tz": "GMT-0600"
+                },
+                "waistline": null,
+                "date": 20151005,
+                "shared": true,
+                "type": "body"
+            },
+            {
+                "lean_mass": 0,
+                "time_updated": 1444160342,
+                "xid": "JM2JlMHcHlVYbz0vvV-tzteoDrIYcQ7k",
+                "weight": 74.8,
+                "title": null,
+                "body_fat": 0,
+                "image": "",
+                "bmi": 22,
+                "time_created": 1444160341,
+                "note": null,
+                "details": {
+                    "tz": null
+                },
+                "waistline": null,
+                "date": 20151006,
+                "type": "body"
+            }
+        ],
+        "size": 3
+    },
+    "meta": {
+        "code": 200,
+        "message": "OK",
+        "time": 1444170383,
+        "user_xid": "VB0mNZWqiOWj26_3mxlZjg"
+    }
+}
