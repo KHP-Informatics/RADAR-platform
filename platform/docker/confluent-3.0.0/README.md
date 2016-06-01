@@ -10,6 +10,13 @@ OMH Shimmer
 ===========
 OMH Shimmer is deployed using OMH platform 
 
+Shimmer configuration
+Once the services are deployed (see below), to configure the 3rd Party API access in Shimmer  
+ 1. Point a browser at `http://docker-host:8083`
+ 2. Goto settings, and add the clientID and ClientSecret for API you want to access
+ 3. For OAuth you'll need to configure a TLD for your callback URL (on the 3rd Party side), for development we are using xip.io to provide a TLD e.g. http://www.10.200.100.170.xip.io:8083/authorize/fitbit/callback
+
+
 Confluent Platform
 ==================
 

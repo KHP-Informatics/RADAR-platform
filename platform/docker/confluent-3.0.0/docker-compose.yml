@@ -72,6 +72,9 @@ services:
   # Hadoop Platform Services #
   #--------------------------#
 
-##networks:
-##    fullstack:
+#---------------------#
+# composition network #
+#---------------------#
+networks:
+  fullstacknet:
 
