@@ -20,8 +20,8 @@ services:
     image: openmhealth/shimmer-console
     ports:
       - "8083:8083"
-    depends_on:
-      - resourceserver
+    links:
+      - resourceserver:resource-server
   
   #-----------------------------#
   # Confluent Platform Services #
@@ -49,6 +49,7 @@ services:
     depends_on:
       - "kafka"
       - "zookeeper"
+    restart: always
     ports:
       - "8081:8081"
     environment:
@@ -75,6 +76,6 @@ services:
 #---------------------#
 # composition network #
 #---------------------#
-networks:
-  fullstacknet:
+#networks:
+#  fullstacknet:
 
