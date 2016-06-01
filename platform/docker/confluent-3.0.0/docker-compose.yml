@@ -1,0 +1,77 @@
+version: "2"
+
+
+services:
+  #----------------------#
+  # OMH Shimmer services #
+  #----------------------#
+  mongo:
+    image: mongo
+
+  resourceserver:
+    image: openmhealth/shimmer-resource-server
+    environment:
+      SPRING_PROFILES_ACTIVE: development
+      OPENMHEALTH_SHIM_SERVER_CALLBACKURLBASE: http://192.168.99.100:8083
+    depends_on:
+      - mongo
+ 
+  console:
+    image: openmhealth/shimmer-console
+    ports:
+      - "8083:8083"
+    depends_on:
+      - resourceserver
+  
+  #-----------------------------#
+  # Confluent Platform Services #
+  #-----------------------------#
+  zookeeper:
+    image: confluent/zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      zk_id: "1"
+
+  kafka:
+    image: confluent/kafka
+    depends_on:
+      - "zookeeper"
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: "kafka"    #clients should resolve this to the docker host IP
+      #KAFKA_ADVERTISED_PORT: "9092"
+      #KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+
+  schema-registry:
+    image: confluent/schema-registry
+    depends_on:
+      - "kafka"
+      - "zookeeper"
+    ports:
+      - "8081:8081"
+    environment:
+      SR_KAFKASTORE_CONNECTION_URL: "zookeeper:2181"
+
+  rest-proxy:
+    image: confluent/rest-proxy
+    depends_on:
+      - "zookeeper"
+      - "kafka"
+      - "schema-registry"
+    ports:
+      - "8082:8082"
+    environment:
+      RP_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      #RP_ZOOKEEPER_CONNECT: "zookeeper:2181"
+
+  # TODO need containers for i) Confluent Control Center ii) Kafka Connect
+
+  #--------------------------#
+  # Hadoop Platform Services #
+  #--------------------------#
+
+##networks:
+##    fullstack:
+
